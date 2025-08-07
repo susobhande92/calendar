@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>2025 Colorful Calendar & Task Manager</title>
+  <style>
+    /* (same styles as before, unchanged) */
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      background: #fdfdfd;
+      color: #333;
+      min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(90deg, #2196f3, #21cbf3);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+    .container {
+      display: flex;
+      flex: 1;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+    .sidebar {
+      flex: 1 1 300px;
+      background: linear-gradient(135deg, #9be15d, #00e3ae);
+      height: auto;
+      padding: 15px;
+      color: #fff;
+    }
+    .calendar-container {
+      flex: 3 1 600px;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .month {
+      margin-bottom: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      background: #fff;
+    }
+    .month h2 {
+      text-align: center;
+      margin: 0;
+      padding: 10px;
+      background: #00bfa6;
+      color: white;
+      border-radius: 10px 10px 0 0;
+    }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      padding: 10px;
+    }
+    .day, .weekday {
+      text-align: center;
+      padding: 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .weekday {
+      font-weight: bold;
+      background: #e0f7fa;
+      color: #006064;
+      cursor: default;
+    }
+    .day {
+      background: #f5f5f5;
+    }
+    .day:hover {
+      background: #aed581;
+      color: white;
+    }
+    .past {
+      background: #e0e0e0 !important;
+      text-decoration: line-through;
+      color: #888;
+    }
+    .notification {
+      background: #d32f2f;
+      color: white;
+      padding: 10px;
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 10px;
+      border-radius: 6px;
+    }
+    .task-list h3 {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .task {
+      background: #2196f3;
+      color: white;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 16px;
+      transition: background 0.3s, color 0.3s;
+    }
+    .task.completed {
+      background-color: #dcedc8;
+      color: #33691e;
+      text-decoration: line-through;
+    }
+    .task input[type="checkbox"] {
+      margin-right: 10px;
+      transform: scale(1.2);
+    }
+    .task .text {
+      flex-grow: 1;
+    }
+    .task button.delete-btn {
+      margin-left: 10px;
+      background: transparent;
+      color: white;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .task.completed button.delete-btn {
+      color: #33691e;
+    }
+    input[type="text"], input[type="date"] {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0 10px;
+      border: none;
+      border-radius: 5px;
+      font-size: 15px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #00796b;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #004d40;
+    }
+    .pending-tasks {
+      background: rgba(255, 255, 255, 0.2);
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .pending-tasks h4 {
+      text-align: center;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    .pending-tasks ul {
+      list-style: none;
+      padding-left: 0;
+      color: #fff;
+    }
+    .pending-tasks li {
+      margin-bottom: 4px;
+    }
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header id="clockHeader">Loading clock...</header>
+  <div class="container">
+    <div class="sidebar">
+      <div class="notification" id="goalDaysLeft"></div>
+      <input type="date" id="goalDateInput" onchange="setGoalDate(this.value)">
+      <div class="task-list">
+        <h3>Tasks for <span id="selectedDate">None</span></h3>
+        <div id="taskItems"></div>
+        <input type="text" id="taskInput" placeholder="Add task...">
+        <button onclick="addTask()">Add Task</button>
+      </div>
+      <div class="pending-tasks">
+        <h4>Pending Tasks</h4>
+        <ul id="pendingList"></ul>
+      </div>
+    </div>
+    <div class="calendar-container" id="calendarContainer"></div>
+  </div>
+
+  <script>
+    let goalDate = new Date('2025-12-31');
+    const today = new Date();
+    const tasks = {};
+    let selectedKey = null;
+
+    function updateDaysLeft() {
+      const now = new Date();
+      const diffTime = goalDate - now;
+      const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      document.getElementById("goalDaysLeft").textContent = `${daysLeft} days left for your goal!`;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      let hours = now.getHours();
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+      const timeStr = `${hours}:${minutes} ${ampm}`;
+      const dateStr = now.toLocaleDateString(undefined, options);
+      document.getElementById("clockHeader").textContent = `${timeStr} - ${dateStr}`;
+    }
+
+    setInterval(updateClock, 1000);
+    updateDaysLeft();
+    updateClock();
+
+    function generateCalendar(year = 2025) {
+      const calendarContainer = document.getElementById("calendarContainer");
+      const months = [7, 8, 9, 10, 11];
+      const monthNames = ["August", "September", "October", "November", "December"];
+      const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+      months.forEach((m, index) => {
+        const monthDiv = document.createElement("div");
+        monthDiv.classList.add("month");
+
+        const title = document.createElement("h2");
+        title.textContent = `${monthNames[index]} ${year}`;
+        monthDiv.appendChild(title);
+
+        const cal = document.createElement("div");
+        cal.classList.add("calendar");
+
+        weekdays.forEach(day => {
+          const wd = document.createElement("div");
+          wd.classList.add("weekday");
+          wd.textContent = day;
+          cal.appendChild(wd);
+        });
+
+        const firstDay = new Date(year, m, 1).getDay();
+        const daysInMonth = new Date(year, m + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) {
+          const empty = document.createElement("div");
+          cal.appendChild(empty);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = new Date(year, m, d);
+          const dateKey = date.toLocaleDateString('en-CA'); // Local YYYY-MM-DD
+          const day = document.createElement("div");
+          day.classList.add("day");
+          if (date < today) day.classList.add("past");
+          day.textContent = d;
+          day.onclick = () => {
+            selectedKey = dateKey;
+            document.getElementById("selectedDate").textContent = dateKey;
+            document.getElementById("taskInput").value = "";
+            showTasks();
+          };
+          cal.appendChild(day);
+        }
+
+        monthDiv.appendChild(cal);
+        calendarContainer.appendChild(monthDiv);
+      });
+    }
+
+    function showTasks() {
+      const list = document.getElementById("taskItems");
+      list.innerHTML = "";
+      const t = tasks[selectedKey] || [];
+      t.forEach((task, index) => {
+        const div = document.createElement("div");
+        div.classList.add("task");
+        if (task.done) div.classList.add("completed");
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = task.done;
+        checkbox.onchange = () => {
+          task.done = checkbox.checked;
+          showTasks();
+          updatePendingTasks();
+        };
+
+        const span = document.createElement("span");
+        span.textContent = task.text;
+        span.classList.add("text");
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.innerHTML = "🗑️";
+        deleteBtn.classList.add("delete-btn");
+        deleteBtn.onclick = () => {
+          tasks[selectedKey].splice(index, 1);
+          showTasks();
+        };
+
+        div.appendChild(checkbox);
+        div.appendChild(span);
+        div.appendChild(deleteBtn);
+        list.appendChild(div);
+      });
+      updatePendingTasks();
+    }
+
+    function addTask() {
+      const input = document.getElementById("taskInput");
+      const text = input.value.trim();
+      if (!text || !selectedKey) return;
+      tasks[selectedKey] = tasks[selectedKey] || [];
+      tasks[selectedKey].push({ text, done: false });
+      input.value = "";
+      showTasks();
+    }
+
+    function updatePendingTasks() {
+      const pendingList = document.getElementById("pendingList");
+      pendingList.innerHTML = "";
+      for (const [date, taskArray] of Object.entries(tasks)) {
+        const taskDate = new Date(date);
+        if (taskDate <= today) {
+          const pending = taskArray.filter(t => !t.done);
+          if (pending.length > 0) {
+            const li = document.createElement("li");
+            li.textContent = `${date}: ${pending.length} pending task(s)`;
+            pendingList.appendChild(li);
+          }
+        }
+      }
+    }
+
+    function setGoalDate(dateStr) {
+      if (!dateStr) return;
+      goalDate = new Date(dateStr);
+      updateDaysLeft();
+    }
+
+    generateCalendar();
+  </script>
+</body>
+</html>
